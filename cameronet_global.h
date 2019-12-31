@@ -1,0 +1,12 @@
+#ifndef CAMERONET_GLOBAL_H
+#define CAMERONET_GLOBAL_H
+
+#include <QtCore/qglobal.h>
+
+#if defined(CAMERONET_LIBRARY)
+#  define CAMERONETSHARED_EXPORT Q_DECL_EXPORT
+#else
+#  define CAMERONETSHARED_EXPORT Q_DECL_IMPORT
+#endif
+
+#endif // CAMERONET_GLOBAL_H
