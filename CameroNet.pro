@@ -6,6 +6,8 @@
 
 QT       += core gui
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+QT       += serialport
+
 
 TARGET = CameroNet
 TEMPLATE = lib
@@ -19,7 +21,7 @@ DEFINES += CAMERONET_LIBRARY
 # deprecated API in order to know how to port your code away from it.
 DEFINES += QT_DEPRECATED_WARNINGS
 
-INCLUDEPATH += D:\Documents\Screen
+INCLUDEPATH += D:\git\Screen
 
 # You can also make your code fail to compile if you use deprecated APIs.
 # In order to do so, uncomment the following line.
@@ -47,6 +49,8 @@ unix {
     target.path = /usr/lib
     INSTALLS += target
 }
+
+include(log4qt/log4qt.pri)
 
 LIBS += -L../CameroNet/lib -lHCNetSDK -lPlayCtrl -lHCCore
 LIBS += -L../CameroNet/lib -llibScreen

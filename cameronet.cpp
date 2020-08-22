@@ -13,8 +13,16 @@
 #include "logevent.h"
 #include "globaloption.h"
 
+#include "log4qt/logger.h"
+#include "log4qt/patternlayout.h"
+#include "log4qt/dailyrollingfileappender.h"
+
+
 QString G_PicSaveAdd = "";
 QString G_VedioSaveAdd = "";
+int G_Port = 0;
+int G_RecordTime = 0;
+int G_Stream = 0;
 
 QMap<LLONG,QString> CameroNet::fileNameMap = {};
 static QObject *gpRecive =nullptr;
@@ -56,6 +64,18 @@ CameroNet::CameroNet(QObject *p):
     //connect(dhWork,SIGNAL(loginResult(const CameraDeviceImf&,int,int)),this,SLOT(dhLoginResut(const CameraDeviceImf&,int,int)),Qt::QueuedConnection);
     dhWork->moveToThread(dhThread);
     dhThread->start();
+
+    //日志系统配置
+    Log4Qt::PatternLayout *p_layout = new Log4Qt::PatternLayout(this);
+    p_layout->setConversionPattern("%d{yyyy-MM-dd HH:mm:ss} [%c] - %m%n");
+    p_layout->activateOptions();
+    const QString rFileName =QCoreApplication::applicationDirPath() + "/logs/CameroNetlog.log";
+    const QString datePattern = "'.'yyyy-MM-dd";
+    Log4Qt::DailyRollingFileAppender *appender = new Log4Qt::DailyRollingFileAppender(p_layout,rFileName,datePattern,this);
+    appender->setAppendFile(true);
+    appender->activateOptions();
+
+    Log4Qt::Logger::rootLogger()->addAppender(appender);
 }
 
 CameroNet::~CameroNet()
@@ -67,7 +87,7 @@ CameroNet::~CameroNet()
     }
 }
 
-void CameroNet::login(CameraDeviceImf &info)
+void CameroNet::   login(CameraDeviceImf &info)
 {
     switch(info.mold){
     case Camero::HK:
@@ -258,6 +278,7 @@ LLONG CameroNet::realPlay(CameraDeviceImf* info, LONG channel,Screen& screen)//�
     pScreenByUserMap.insert(info->luserId,&screen);//显示由playId返回的错误
     screen.settoolBarVisible(true);
     screen.setTitle(info->name);
+    screen.setPlayState(Screen::PLAY);
     connect(&screen,SIGNAL(cameraClose(CameraDeviceImf&,Screen*)),this,SLOT(stopPlay(CameraDeviceImf&,Screen*)));
     connect(&screen,SIGNAL(capPicture(CameraDeviceImf& )),this,SLOT(capPic(CameraDeviceImf& )));
     connect(&screen,SIGNAL(soundCommond(CameraDeviceImf&,SoundCommond)),
@@ -269,8 +290,14 @@ LLONG CameroNet::realPlay(CameraDeviceImf* info, LONG channel,Screen& screen)//�
 void CameroNet::g_RealDataCallBack_V30(LONG lRealHandle, DWORD dwDataType, BYTE *pBuffer, DWORD dwBufSize, void *pUser)
 {
     QString *fileName = static_cast<QString *>(pUser);
+    if(fileName->isEmpty())
+    {
+        Log4Qt::Logger::logger("Cameronet")->debug("设置了一个不合法的文件路径");
+        return;
+    }
     QFile file(*fileName);
     file.open(QIODevice::ReadWrite | QIODevice::Append);
+
     switch (dwDataType)
         {
         case NET_DVR_STREAMDATA:   //码流数据
@@ -316,20 +343,25 @@ void CameroNet::fRealDataCallBack(LONG lRealHandle, DWORD dwDataType, BYTE *pBuf
 
 LLONG CameroNet::recordVedio(CameraDeviceImf *info, LONG channel, QString *fileName, Screen *screen)
 {
+    Log4Qt::Logger::logger("CameroNet")->debug("准备录像");
     if(info->luserId == -1)
     {
         return -1;//可以弹出框提示设备不在线
     }
     if(info->mold == Camero::HK)
     {
+        Log4Qt::Logger::logger("CameroNet")->debug("设备类型：HK");
         NET_DVR_PREVIEWINFO clientInfo;
         memset(&clientInfo,0,sizeof(clientInfo));
         LONG lUserId = info->luserId;
         clientInfo.lChannel = channel;
         clientInfo.hPlayWnd = (HWND)screen->getPlayWidget()->winId();
+
         LONG playID = NET_DVR_RealPlay_V40(lUserId,&clientInfo,g_RealDataCallBack_V30,fileName);
+        Log4Qt::Logger::logger("Cametonet")->debug(QString("错误%1").arg(NET_DVR_GetLastError()));
         if(playID >= 0)
         {
+            Log4Qt::Logger::logger("CameroNet")->debug(QString("设备打开成功，句柄为%1").arg(playID));
             info->playId = playID;
             screen->bindDevice(info,channel);
             screen->settoolBarVisible(true);
@@ -338,10 +370,7 @@ LLONG CameroNet::recordVedio(CameraDeviceImf *info, LONG channel, QString *fileN
             connect(screen,SIGNAL(capPicture(CameraDeviceImf& )),this,SLOT(capPic(CameraDeviceImf& )));
             connect(screen,SIGNAL(soundCommond(CameraDeviceImf&,SoundCommond)),
                     this,SLOT(changeSoundState(CameraDeviceImf&,SoundCommond)));
-        }
-        else
-        {
-
+            return playID;
         }
     }
     else if(info->mold == Camero::DH)
@@ -353,6 +382,10 @@ LLONG CameroNet::recordVedio(CameraDeviceImf *info, LONG channel, QString *fileN
             CLIENT_SetRealDataCallBack(playID,fRealDataCallBack,0);
         }
         return  playID;
+    }
+    else
+    {
+        return -8;
     }
 }
 
@@ -373,6 +406,7 @@ DWORD CameroNet::stopPlay(CameraDeviceImf &info, Screen *screen)
         info.playId = -1;
         screen->settoolBarVisible(false);
         screen->setToolTip("");
+        screen->setPlayState(Screen::UNPLAY);
         screen->update();
         pScreenByUserMap.remove(info.luserId,screen);
         disconnect(screen,SIGNAL(cameraClose(CameraDeviceImf&,Screen*)),this,SLOT(stopPlay(CameraDeviceImf&,Screen*)));

@@ -24,6 +24,7 @@ struct CameraDeviceImf
         playId = right.playId;
         LoginWarming = right.LoginWarming;
         playWarming = right.playWarming;
+        lineState = right.lineState;
         return  *this;
     }
 

@@ -19,7 +19,7 @@ void DHwork::login(const CameraDeviceImf *info)
     char *pPassWord = array2.data();
     int err;
 
-    //此函数是同步接口，会阻塞主线程,成功返回非0，为登陆句柄。
+    //此函数是同步接口，会阻塞线程,成功返回非0，为登陆句柄。
     LLONG loginIndex = CLIENT_Login(cIp,port,pUserAccount,pPassWord,NULL,&err);
     if(loginIndex != 0)//成功
     {
